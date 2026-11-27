@@ -1,0 +1,33 @@
+{
+  "name": "mochifs",
+  "version": "0.1.0",
+  "layer": "package",
+  "description": "Filesystem primitives (read/write/stat/readdir/copy/rename/remove/mkdir) via host image",
+  "status": "verified",
+  "entry": "./node_modules/src/index.js",
+  "layers": {
+    "js": "./node_modules/manifest.json",
+    "native": "./mochi_modules/manifest.json"
+  },
+  "abi_version": "MBC1",
+  "native_entry": "mbjs_init_module",
+  "runtime_exports": [
+    "appendText",
+    "copyFile",
+    "cwd",
+    "exists",
+    "mkdir",
+    "readText",
+    "readdir",
+    "remove",
+    "rename",
+    "stat",
+    "writeText"
+  ],
+  "build": {
+    "engine_include": "$ENGINE_INC",
+    "lib_dir": "./mochi_modules/lib",
+    "output": "./mochi_modules/lib/mochifs_x86_64.dll",
+    "link_libs": []
+  }
+}

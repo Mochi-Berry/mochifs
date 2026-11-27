@@ -1,0 +1,31 @@
+{
+  "layer": "native_core",
+  "name": "mochifs",
+  "version": "0.1.0",
+  "abi_version": "MBC1",
+  "entry_point": "mbjs_init_module",
+  "status": "verified",
+  "targets": {
+    "x86_64-windows": "./lib/mochifs_x86_64.dll"
+  },
+  "exports": [
+    "appendText",
+    "copyFile",
+    "cwd",
+    "exists",
+    "mkdir",
+    "readText",
+    "readdir",
+    "remove",
+    "rename",
+    "stat",
+    "writeText"
+  ],
+  "sources": [
+    "src/mochifs.c"
+  ],
+  "headers": [
+    "include/mochifs.h",
+    "include/mochifs_abi.h"
+  ]
+}
