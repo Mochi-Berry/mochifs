@@ -1,12 +1,23 @@
 #include "mbjs_runtime.h"
 
+#ifdef _WIN32
 #include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <direct.h>
 #include <io.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <errno.h>
+#ifndef MAX_PATH
+#define MAX_PATH 4096
+#endif
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static MBJSRuntime rt;
 
@@ -181,7 +192,7 @@ static MBJSValue fs_exists(MBJSContext *ctx, MBJSValueConst this_val,
                            int argc, MBJSValueConst *argv)
 {
     char *path;
-    struct _stat st;
+    struct stat st;
     int found;
     (void)this_val;
     if (argc < 1)
@@ -189,7 +200,7 @@ static MBJSValue fs_exists(MBJSContext *ctx, MBJSValueConst this_val,
     path = js_cstr(ctx, argv[0]);
     if (!path)
         return MBJS_NewInt32(ctx, 0);
-    found = _stat(path, &st) == 0;
+    found = stat(path, &st) == 0;
     free(path);
     return MBJS_NewInt32(ctx, found ? 1 : 0);
 }
@@ -198,7 +209,7 @@ static MBJSValue fs_stat(MBJSContext *ctx, MBJSValueConst this_val,
                          int argc, MBJSValueConst *argv)
 {
     char *path;
-    struct _stat st;
+    struct stat st;
     char buf[256];
     int n;
     (void)this_val;
@@ -207,7 +218,7 @@ static MBJSValue fs_stat(MBJSContext *ctx, MBJSValueConst this_val,
     path = js_cstr(ctx, argv[0]);
     if (!path)
         return js_str(ctx, "", 0);
-    if (_stat(path, &st) != 0) {
+    if (stat(path, &st) != 0) {
         free(path);
         return js_str(ctx, "", 0);
     }
@@ -224,10 +235,9 @@ static MBJSValue fs_readdir(MBJSContext *ctx, MBJSValueConst this_val,
                             int argc, MBJSValueConst *argv)
 {
     char *path;
-    char *pattern;
+    DIR *d;
+    struct dirent *de;
     size_t n;
-    WIN32_FIND_DATAA fd;
-    HANDLE h;
     char *buf = NULL;
     size_t cap = 0;
     size_t len = 0;
@@ -241,28 +251,20 @@ static MBJSValue fs_readdir(MBJSContext *ctx, MBJSValueConst this_val,
     n = strlen(path);
     while (n > 0 && (path[n - 1] == '/' || path[n - 1] == '\\'))
         path[--n] = 0;
-    pattern = (char *)malloc(n + 3);
-    if (!pattern) {
-        free(path);
-        return js_str(ctx, "[]", 2);
-    }
-    memcpy(pattern, path, n);
-    memcpy(pattern + n, "/*", 3);
+    d = opendir(path);
     free(path);
-    h = FindFirstFileA(pattern, &fd);
-    free(pattern);
-    if (h == INVALID_HANDLE_VALUE)
+    if (!d)
         return js_str(ctx, "[]", 2);
     append(&buf, &cap, &len, "[", 1);
-    do {
-        if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, ".."))
+    while ((de = readdir(d)) != NULL) {
+        if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
             continue;
         if (len > 1)
             append(&buf, &cap, &len, ",", 1);
-        append_json_string(&buf, &cap, &len, fd.cFileName);
-    } while (FindNextFileA(h, &fd));
+        append_json_string(&buf, &cap, &len, de->d_name);
+    }
     append(&buf, &cap, &len, "]", 1);
-    FindClose(h);
+    closedir(d);
     out = js_str(ctx, buf ? buf : "[]", len);
     free(buf);
     return out;
@@ -272,7 +274,7 @@ static MBJSValue fs_mkdir(MBJSContext *ctx, MBJSValueConst this_val,
                           int argc, MBJSValueConst *argv)
 {
     char *path;
-    struct _stat st;
+    struct stat st;
     int rc;
     (void)this_val;
     if (argc < 1)
@@ -280,11 +282,11 @@ static MBJSValue fs_mkdir(MBJSContext *ctx, MBJSValueConst this_val,
     path = js_cstr(ctx, argv[0]);
     if (!path)
         return MBJS_NewInt32(ctx, -1);
-    if (_stat(path, &st) == 0) {
+    if (stat(path, &st) == 0) {
         free(path);
         return (st.st_mode & S_IFDIR) ? MBJS_NewInt32(ctx, 0) : MBJS_NewInt32(ctx, -1);
     }
-    rc = _mkdir(path);
+    rc = mkdir(path, 0777);
     free(path);
     return MBJS_NewInt32(ctx, rc);
 }
@@ -302,7 +304,7 @@ static MBJSValue fs_remove(MBJSContext *ctx, MBJSValueConst this_val,
         return MBJS_NewInt32(ctx, -1);
     rc = remove(path);
     if (rc != 0)
-        rc = _rmdir(path);
+        rc = rmdir(path);
     free(path);
     return MBJS_NewInt32(ctx, rc);
 }
@@ -383,7 +385,7 @@ static MBJSValue fs_cwd(MBJSContext *ctx, MBJSValueConst this_val,
 {
     char buf[MAX_PATH];
     (void)this_val; (void)argc; (void)argv;
-    if (!_getcwd(buf, sizeof(buf)))
+    if (!getcwd(buf, sizeof(buf)))
         return js_str(ctx, "", 0);
     return js_str(ctx, buf, strlen(buf));
 }
